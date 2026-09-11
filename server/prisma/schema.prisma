@@ -1,0 +1,142 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  OPERATIONS
+  SALES
+}
+
+enum WorkOrderStatus {
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum TransferStatus {
+  REQUESTED
+  DISPATCHED
+  RECEIVED
+}
+
+enum CustomerOrderStatus {
+  CREATED
+  RESERVED
+  CANCELLED
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  workOrders     WorkOrder[]
+  customerOrders CustomerOrder[]
+}
+
+model Location {
+  id        String   @id @default(uuid())
+  name      String
+  code      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  inventory         Inventory[]
+  workOrders        WorkOrder[]
+  transfersAsSource InternalTransfer[] @relation("SourceLocation")
+  transfersAsDest   InternalTransfer[] @relation("DestLocation")
+}
+
+model Item {
+  id        String   @id @default(uuid())
+  name      String
+  sku       String   @unique
+  category  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  inventory          Inventory[]
+  workOrders         WorkOrder[]
+  internalTransfers  InternalTransfer[]
+  customerOrderItems CustomerOrderItem[]
+}
+
+model Inventory {
+  id               String   @id @default(uuid())
+  itemId           String
+  locationId       String
+  batch            String
+  physicalQuantity Int      @default(0)
+  reservedQuantity Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  item     Item     @relation(fields: [itemId], references: [id])
+  location Location @relation(fields: [locationId], references: [id])
+
+  @@unique([itemId, locationId, batch])
+  @@index([itemId])
+  @@index([locationId])
+}
+
+model WorkOrder {
+  id               String          @id @default(uuid())
+  locationId       String
+  itemId           String
+  requiredQuantity Int
+  assignedUserId   String?
+  status           WorkOrderStatus @default(ASSIGNED)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  location     Location @relation(fields: [locationId], references: [id])
+  item         Item     @relation(fields: [itemId], references: [id])
+  assignedUser User?    @relation(fields: [assignedUserId], references: [id])
+}
+
+model InternalTransfer {
+  id                    String         @id @default(uuid())
+  sourceLocationId      String
+  destinationLocationId String
+  itemId                String
+  quantity              Int
+  status                TransferStatus @default(REQUESTED)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  sourceLocation      Location @relation("SourceLocation", fields: [sourceLocationId], references: [id])
+  destinationLocation Location @relation("DestLocation", fields: [destinationLocationId], references: [id])
+  item                Item     @relation(fields: [itemId], references: [id])
+}
+
+model CustomerOrder {
+  id          String              @id @default(uuid())
+  createdById String
+  status      CustomerOrderStatus @default(CREATED)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  createdBy          User                @relation(fields: [createdById], references: [id])
+  customerOrderItems CustomerOrderItem[]
+}
+
+model CustomerOrderItem {
+  id        String   @id @default(uuid())
+  orderId   String
+  itemId    String
+  quantity  Int
+  createdAt DateTime @default(now())
+
+  order CustomerOrder @relation(fields: [orderId], references: [id])
+  item  Item          @relation(fields: [itemId], references: [id])
+}
