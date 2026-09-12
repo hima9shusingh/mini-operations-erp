@@ -52,17 +52,23 @@ export const createCustomerOrder = async (req: Request, res: Response): Promise<
       return;
     }
 
-    // Atomic stock reservation
-    const result = await prisma.$executeRaw`
-      UPDATE "Inventory"
-      SET "reservedQuantity" = "reservedQuantity" + ${quantity},
-          "updatedAt" = NOW()
-      WHERE "id" = ${inventory.id}
-        AND ("physicalQuantity" - "reservedQuantity") >= ${quantity}
-    `;
+    // Atomic stock reservation using updateMany for concurrency safety without raw SQL quirks
+    const result = await prisma.inventory.updateMany({
+      where: {
+        id: inventory.id,
+        // Since Prisma can't do column-to-column comparison natively, we use the known values from the DB snapshot
+        // If the row was modified, physicalQuantity or reservedQuantity might be different, but we ensure at least
+        // the remaining available space from our read snapshot is still enough, OR we just lock it.
+        // Actually, Prisma updateMany is atomic. If we just rely on `reservedQuantity`, we can check:
+        reservedQuantity: inventory.reservedQuantity
+      },
+      data: {
+        reservedQuantity: { increment: quantity },
+        updatedAt: new Date()
+      }
+    });
 
-    // $executeRaw returns the number of rows affected
-    if (result === 0) {
+    if (result.count === 0) {
       res.status(409).json({ success: false, message: 'Insufficient available inventory due to concurrent reservation.' });
       return;
     }
@@ -169,25 +175,17 @@ export const cancelCustomerOrder = async (req: Request, res: Response): Promise<
       return;
     }
 
-    await prisma.$transaction(async (prismaClient) => {
-      const inventory = await prismaClient.inventory.findFirst({
-        where: { itemId: order.itemId, locationId: order.locationId }
-      });
-
-      if (inventory) {
-        await prismaClient.inventory.update({
-          where: { id: inventory.id },
-          data: {
-            reservedQuantity: { decrement: order.quantity }
-          }
-        });
-      }
-
-      await prismaClient.customerOrder.update({
-        where: { id },
-        data: { status: CustomerOrderStatus.CANCELLED }
-      });
+    const invUpdate = prisma.inventory.updateMany({
+      where: { itemId: order.itemId, locationId: order.locationId },
+      data: { reservedQuantity: { decrement: order.quantity } }
     });
+
+    const orderUpdate = prisma.customerOrder.update({
+      where: { id },
+      data: { status: CustomerOrderStatus.CANCELLED }
+    });
+
+    await prisma.$transaction([invUpdate, orderUpdate]);
 
     const updated = await prisma.customerOrder.findUnique({
       where: { id },

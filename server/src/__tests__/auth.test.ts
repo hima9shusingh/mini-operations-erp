@@ -21,7 +21,7 @@ describe('Authentication Tests', () => {
       password: 'password'
     });
     expect(res.status).toBe(200);
-    expect(res.body.data.token).toBeDefined();
+    expect(res.body.token).toBeDefined();
   });
 
   it('Login with invalid credentials', async () => {

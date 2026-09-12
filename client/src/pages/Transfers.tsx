@@ -43,7 +43,7 @@ export const Transfers = () => {
     sourceLocation: '',
     destinationLocation: '',
     item: '',
-    quantity: 0,
+    quantity: '' as number | '',
   });
 
   const canMutate = user ? ['ADMIN', 'OPERATIONS'].includes(user.role) : false;
@@ -81,7 +81,7 @@ export const Transfers = () => {
   };
 
   const openCreateModal = () => {
-    setFormData({ sourceLocation: '', destinationLocation: '', item: '', quantity: 0 });
+    setFormData({ sourceLocation: '', destinationLocation: '', item: '', quantity: '' });
     setError('');
     setSuccess('');
     setIsCreateModalOpen(true);
@@ -114,13 +114,14 @@ export const Transfers = () => {
     
     setIsLoading(true);
     try {
-      await fetchApi('/transfers', {
+      const res = await fetchApi('/transfers', {
         method: 'POST',
         body: JSON.stringify(formData),
       });
-      setSuccess('Transfer created successfully.');
+      setSuccess('Transfer requested successfully.');
       setIsCreateModalOpen(false);
-      loadData();
+      // OPTIMIZATION: Update local state without double-fetching
+      setData(prev => [res.data, ...prev]);
     } catch (err: any) {
       setError(err.message || 'Validation failed. Check your input.');
     } finally {
@@ -133,9 +134,12 @@ export const Transfers = () => {
     setSuccess('');
     setIsLoading(true);
     try {
-      await fetchApi(`/transfers/${id}/dispatch`, { method: 'PATCH' });
+      const res = await fetchApi(`/transfers/${id}/dispatch`, {
+        method: 'PATCH',
+      });
       setSuccess('Transfer dispatched successfully.');
-      loadData();
+      // OPTIMIZATION: Update local state without double-fetching
+      setData(prev => prev.map(t => t.id === id ? res.data : t));
     } catch (err: any) {
       setError(err.message || 'Failed to dispatch transfer.');
     } finally {
@@ -148,9 +152,12 @@ export const Transfers = () => {
     setSuccess('');
     setIsLoading(true);
     try {
-      await fetchApi(`/transfers/${id}/receive`, { method: 'PATCH' });
+      const res = await fetchApi(`/transfers/${id}/receive`, {
+        method: 'PATCH',
+      });
       setSuccess('Transfer received successfully.');
-      loadData();
+      // OPTIMIZATION: Update local state without double-fetching
+      setData(prev => prev.map(t => t.id === id ? res.data : t));
     } catch (err: any) {
       setError(err.message || 'Failed to receive transfer.');
     } finally {
@@ -159,59 +166,56 @@ export const Transfers = () => {
   };
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'REQUESTED':
-        return <span style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.875rem', backgroundColor: '#DBEAFE', color: '#1E40AF' }}>REQUESTED</span>;
-      case 'DISPATCHED':
-        return <span style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.875rem', backgroundColor: '#FEF3C7', color: '#92400E' }}>DISPATCHED</span>;
-      case 'RECEIVED':
-        return <span style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.875rem', backgroundColor: '#D1FAE5', color: '#065F46' }}>RECEIVED</span>;
-      default:
-        return <span>{status}</span>;
-    }
+    return <span className={`badge badge-${status.toLowerCase()}`}>{status}</span>;
   };
 
   return (
-    <div className="card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <h2 style={{ margin: 0 }}>Internal Transfers</h2>
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h2 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.75rem' }}>Internal Transfers</h2>
+          <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.875rem' }}>Manage stock movement across locations</p>
+        </div>
         {canMutate && (
-          <button className="btn" onClick={openCreateModal}>Create Transfer</button>
+          <button className="btn" onClick={openCreateModal}>Request Transfer</button>
         )}
       </div>
 
       {error && <div className="text-error">{error}</div>}
-      {success && <div className="text-error" style={{ color: '#059669', backgroundColor: '#D1FAE5', borderColor: '#34D399' }}>{success}</div>}
+      {success && <div className="text-success">{success}</div>}
 
-      <form onSubmit={handleSearch} style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-        <select 
-          className="form-input" 
-          value={statusFilter} 
-          onChange={e => setStatusFilter(e.target.value)} 
-          style={{ width: '200px' }}
-        >
-          <option value="">All Statuses</option>
-          <option value="REQUESTED">REQUESTED</option>
-          <option value="DISPATCHED">DISPATCHED</option>
-          <option value="RECEIVED">RECEIVED</option>
-        </select>
-        <button type="submit" className="btn btn-secondary">Search</button>
-      </form>
+      <div className="card" style={{ marginBottom: '1.5rem', padding: '1rem' }}>
+        <form onSubmit={handleSearch} style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+          <select 
+            className="form-input" 
+            value={statusFilter} 
+            onChange={e => setStatusFilter(e.target.value)} 
+            style={{ flex: '1 1 200px' }}
+          >
+            <option value="">All Statuses</option>
+            <option value="REQUESTED">REQUESTED</option>
+            <option value="DISPATCHED">DISPATCHED</option>
+            <option value="RECEIVED">RECEIVED</option>
+          </select>
+          <button type="submit" className="btn btn-secondary">Search</button>
+        </form>
+      </div>
 
       {isLoading && data.length === 0 ? (
-        <p style={{ textAlign: 'center', padding: '2rem' }}>Loading...</p>
+        <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>Loading...</p>
       ) : data.length === 0 ? (
-        <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No transfers found.</p>
+        <div className="card" style={{ textAlign: 'center', padding: '4rem 2rem' }}>
+          <p style={{ color: 'var(--text-muted)' }}>No internal transfers found.</p>
+        </div>
       ) : (
         <div className="table-container">
           <table>
             <thead>
               <tr>
-                <th>ID</th>
+                <th>Item</th>
                 <th>Source</th>
                 <th>Destination</th>
-                <th>Item</th>
-                <th>Qty</th>
+                <th style={{ textAlign: 'right' }}>Quantity</th>
                 <th>Status</th>
                 <th>Created</th>
                 <th>Actions</th>
@@ -220,11 +224,10 @@ export const Transfers = () => {
             <tbody>
               {data.map(t => (
                 <tr key={t.id}>
-                  <td>{t.id.substring(0, 8)}...</td>
+                  <td style={{ fontWeight: 500 }}>{t.item}</td>
                   <td>{t.sourceLocation}</td>
                   <td>{t.destinationLocation}</td>
-                  <td>{t.item}</td>
-                  <td>{t.quantity}</td>
+                  <td style={{ textAlign: 'right' }}>{t.quantity}</td>
                   <td>{getStatusBadge(t.status)}</td>
                   <td>{new Date(t.createdAt).toLocaleDateString()}</td>
                   <td>
@@ -233,13 +236,13 @@ export const Transfers = () => {
                         View
                       </button>
                       {canMutate && t.status === 'REQUESTED' && (
-                        <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', borderColor: '#F59E0B', color: '#B45309' }} onClick={() => handleDispatch(t.id)} disabled={isLoading}>
-                          Dispatch
+                        <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', borderColor: 'var(--warning)', color: 'var(--warning)' }} onClick={() => handleDispatch(t.id)} disabled={isLoading}>
+                          {isLoading ? 'Dispatching...' : 'Dispatch'}
                         </button>
                       )}
                       {canMutate && t.status === 'DISPATCHED' && (
-                        <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', borderColor: '#10B981', color: '#047857' }} onClick={() => handleReceive(t.id)} disabled={isLoading}>
-                          Receive
+                        <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', borderColor: 'var(--success)', color: 'var(--success)' }} onClick={() => handleReceive(t.id)} disabled={isLoading}>
+                          {isLoading ? 'Receiving...' : 'Receive'}
                         </button>
                       )}
                     </div>
@@ -281,7 +284,7 @@ export const Transfers = () => {
               </div>
               <div className="form-group">
                 <label className="form-label">Quantity</label>
-                <input type="number" min="1" required className="form-input" value={formData.quantity} onChange={e => setFormData({...formData, quantity: parseInt(e.target.value) || 0})} />
+                <input type="number" min="1" required className="form-input" value={formData.quantity} onChange={e => setFormData({...formData, quantity: e.target.value === '' ? '' : parseInt(e.target.value) || 0})} />
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => setIsCreateModalOpen(false)}>Cancel</button>

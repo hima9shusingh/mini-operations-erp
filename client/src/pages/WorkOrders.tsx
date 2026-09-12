@@ -54,7 +54,7 @@ export const WorkOrders = () => {
   const [formData, setFormData] = useState({
     location: '',
     item: '',
-    requiredQuantity: 0,
+    requiredQuantity: '' as number | '',
     assignedUserId: '',
   });
   const [statusUpdate, setStatusUpdate] = useState('');
@@ -112,18 +112,21 @@ export const WorkOrders = () => {
   };
 
   const openCreateModal = () => {
-    setFormData({ location: '', item: '', requiredQuantity: 0, assignedUserId: '' });
+    setFormData({ location: '', item: '', requiredQuantity: '', assignedUserId: '' });
     setError('');
     setSuccess('');
     setIsCreateModalOpen(true);
   };
 
-  const openViewModal = (wo: WorkOrder) => {
-    setSelectedWO(wo);
-    setStatusUpdate(wo.status);
-    setError('');
-    setSuccess('');
-    setIsViewModalOpen(true);
+  const openViewModal = (id: string) => {
+    const wo = data.find(w => w.id === id);
+    if (wo) {
+      setSelectedWO(wo);
+      setStatusUpdate(wo.status);
+      setError('');
+      setSuccess('');
+      setIsViewModalOpen(true);
+    }
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -133,13 +136,14 @@ export const WorkOrders = () => {
     setIsLoading(true);
 
     try {
-      await fetchApi('/work-orders', {
+      const res = await fetchApi('/work-orders', {
         method: 'POST',
         body: JSON.stringify(formData),
       });
       setSuccess('Work order created successfully.');
       setIsCreateModalOpen(false);
-      loadData();
+      // OPTIMIZATION: Update local state without double-fetching
+      setData(prev => [res.data, ...prev]);
     } catch (err: any) {
       setError(err.message || 'Validation failed. Check your input.');
     } finally {
@@ -149,17 +153,24 @@ export const WorkOrders = () => {
 
   const handleStatusUpdate = async () => {
     if (!selectedWO) return;
+    const id = selectedWO.id;
+    const newStatus = statusUpdate;
     setError('');
     setSuccess('');
     setIsLoading(true);
     try {
-      await fetchApi(`/work-orders/${selectedWO.id}/status`, {
+      const res = await fetchApi(`/work-orders/${id}/status`, {
         method: 'PATCH',
-        body: JSON.stringify({ status: statusUpdate }),
+        body: JSON.stringify({ status: newStatus }),
       });
-      setSuccess('Status updated successfully.');
-      setIsViewModalOpen(false);
-      loadData();
+      setSuccess('Work order status updated.');
+      
+      // OPTIMIZATION: Update local state without double-fetching
+      setData(prev => prev.map(wo => wo.id === id ? { ...wo, status: res.data.status } : wo));
+      
+      if (selectedWO && selectedWO.id === id) {
+        setSelectedWO({ ...selectedWO, status: res.data.status });
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to update status.');
     } finally {
@@ -168,92 +179,87 @@ export const WorkOrders = () => {
   };
 
   return (
-    <div className="card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <h2 style={{ margin: 0 }}>Work Orders</h2>
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h2 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.75rem' }}>Work Orders</h2>
+          <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.875rem' }}>Track and manage production orders</p>
+        </div>
         {canCreate && (
           <button className="btn" onClick={openCreateModal}>Create Work Order</button>
         )}
       </div>
 
       {error && <div className="text-error">{error}</div>}
-      {success && <div className="text-error" style={{ color: '#059669', backgroundColor: '#D1FAE5', borderColor: '#34D399' }}>{success}</div>}
+      {success && <div className="text-success">{success}</div>}
 
-      <form onSubmit={handleSearch} style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-        <select 
-          className="form-input" 
-          value={statusFilter} 
-          onChange={e => setStatusFilter(e.target.value)} 
-          style={{ width: '200px' }}
-        >
-          <option value="">All Statuses</option>
-          <option value="ASSIGNED">ASSIGNED</option>
-          <option value="IN_PROGRESS">IN_PROGRESS</option>
-          <option value="COMPLETED">COMPLETED</option>
-        </select>
-        <input 
-          className="form-input" 
-          placeholder="Filter Location" 
-          value={locationFilter} 
-          onChange={e => setLocationFilter(e.target.value)} 
-          style={{ width: '200px' }}
-        />
-        <button type="submit" className="btn btn-secondary">Search</button>
-      </form>
+      <div className="card" style={{ marginBottom: '1.5rem', padding: '1rem' }}>
+        <form onSubmit={handleSearch} style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+          <input 
+            type="text" 
+            className="form-input" 
+            placeholder="Location filter" 
+            value={locationFilter}
+            onChange={e => setLocationFilter(e.target.value)}
+            style={{ flex: '1 1 200px' }}
+          />
+          <select 
+            className="form-input" 
+            value={statusFilter} 
+            onChange={e => setStatusFilter(e.target.value)} 
+            style={{ flex: '1 1 200px' }}
+          >
+            <option value="">All Statuses</option>
+            <option value="ASSIGNED">ASSIGNED</option>
+            <option value="IN_PROGRESS">IN_PROGRESS</option>
+            <option value="COMPLETED">COMPLETED</option>
+          </select>
+          <button type="submit" className="btn btn-secondary">Search</button>
+        </form>
+      </div>
 
-      {isLoading ? (
-        <p style={{ textAlign: 'center', padding: '2rem' }}>Loading...</p>
+      {isLoading && data.length === 0 ? (
+        <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>Loading...</p>
       ) : data.length === 0 ? (
-        <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No work orders found.</p>
+        <div className="card" style={{ textAlign: 'center', padding: '4rem 2rem' }}>
+          <p style={{ color: 'var(--text-muted)' }}>No work orders found.</p>
+        </div>
       ) : (
         <div className="table-container">
           <table>
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Location</th>
                 <th>Item</th>
-                <th>Required</th>
-                <th>Available</th>
-                <th>Shortage</th>
-                <th>Assigned User</th>
+                <th>Location</th>
+                <th style={{ textAlign: 'center' }}>Required</th>
+                <th style={{ textAlign: 'center' }}>Available</th>
+                <th style={{ textAlign: 'center' }}>Shortage</th>
                 <th>Status</th>
+                <th>Assigned To</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {data.map(wo => {
-                const hasShortage = wo.materialAvailability.shortageQuantity > 0;
+                const available = wo.materialAvailability?.availableQuantity || 0;
+                const shortage = wo.materialAvailability?.shortageQuantity || 0;
                 return (
                   <tr key={wo.id}>
-                    <td>{wo.id.substring(0, 8)}...</td>
+                    <td style={{ fontWeight: 500 }}>{wo.item}</td>
                     <td>{wo.location}</td>
-                    <td>{wo.item}</td>
-                    <td>{wo.requiredQuantity}</td>
-                    <td>{wo.materialAvailability.availableQuantity}</td>
-                    <td style={{ 
-                      color: hasShortage ? '#DC2626' : '#059669', 
-                      fontWeight: 'bold',
-                      backgroundColor: hasShortage ? '#FEE2E2' : 'transparent',
-                      padding: '0.25rem 0.5rem',
-                      borderRadius: '4px'
-                    }}>
-                      {wo.materialAvailability.shortageQuantity}
+                    <td style={{ textAlign: 'center' }}>{wo.requiredQuantity}</td>
+                    <td style={{ textAlign: 'center' }}>{available}</td>
+                    <td style={{ textAlign: 'center', fontWeight: 600, color: shortage > 0 ? 'var(--danger)' : 'var(--success)' }}>
+                      {shortage}
                     </td>
-                    <td>{wo.assignedUser?.email}</td>
                     <td>
-                      <span style={{ 
-                        padding: '0.25rem 0.5rem', 
-                        borderRadius: '4px', 
-                        fontSize: '0.875rem',
-                        backgroundColor: wo.status === 'COMPLETED' ? '#D1FAE5' : wo.status === 'IN_PROGRESS' ? '#FEF3C7' : '#E0E7FF',
-                        color: wo.status === 'COMPLETED' ? '#065F46' : wo.status === 'IN_PROGRESS' ? '#92400E' : '#3730A3'
-                      }}>
+                      <span className={`badge badge-${wo.status.toLowerCase().replace('_', '')}`}>
                         {wo.status}
                       </span>
                     </td>
+                    <td style={{ color: 'var(--text-muted)' }}>{wo.assignedUser?.email}</td>
                     <td>
-                      <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }} onClick={() => openViewModal(wo)}>
+                      <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }} onClick={() => openViewModal(wo.id)} disabled={isLoading}>
                         View
                       </button>
                     </td>
@@ -291,7 +297,7 @@ export const WorkOrders = () => {
               </div>
               <div className="form-group">
                 <label className="form-label">Required Quantity</label>
-                <input type="number" min="1" required className="form-input" value={formData.requiredQuantity} onChange={e => setFormData({...formData, requiredQuantity: parseInt(e.target.value) || 0})} />
+                <input type="number" min="1" required className="form-input" value={formData.requiredQuantity} onChange={e => setFormData({...formData, requiredQuantity: e.target.value === '' ? '' : parseInt(e.target.value) || 0})} />
               </div>
               <div className="form-group">
                 <label className="form-label">Assigned User</label>
@@ -321,7 +327,7 @@ export const WorkOrders = () => {
             
             <div style={{ marginBottom: '1.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div><strong>ID:</strong> {selectedWO.id}</div>
-              <div><strong>Status:</strong> {selectedWO.status}</div>
+              <div><strong>Status:</strong> <span className={`badge badge-${selectedWO.status.toLowerCase().replace('_', '')}`}>{selectedWO.status}</span></div>
               <div><strong>Location:</strong> {selectedWO.location}</div>
               <div><strong>Item:</strong> {selectedWO.item}</div>
               <div><strong>Required Qty:</strong> {selectedWO.requiredQuantity}</div>

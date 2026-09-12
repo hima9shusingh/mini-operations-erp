@@ -44,10 +44,12 @@ export const CustomerOrders = () => {
     customerName: '',
     location: '',
     item: '',
-    quantity: 0,
+    quantity: '' as number | '',
   });
 
-  const canMutate = user ? ['SALES'].includes(user.role) : false;
+  const canCreate = user ? ['ADMIN', 'SALES'].includes(user.role) : false;
+  const canCancelAll = user ? ['ADMIN'].includes(user.role) : false;
+  const canCancelOwn = user ? ['SALES'].includes(user.role) : false;
 
   const loadData = async (currentPage = page) => {
     setIsLoading(true);
@@ -82,7 +84,7 @@ export const CustomerOrders = () => {
   };
 
   const openCreateModal = () => {
-    setFormData({ customerName: '', location: '', item: '', quantity: 0 });
+    setFormData({ customerName: '', location: '', item: '', quantity: '' });
     setError('');
     setSuccess('');
     setIsCreateModalOpen(true);
@@ -110,13 +112,14 @@ export const CustomerOrders = () => {
     setIsLoading(true);
 
     try {
-      await fetchApi('/customer-orders', {
+      const res = await fetchApi('/customer-orders', {
         method: 'POST',
         body: JSON.stringify(formData),
       });
-      setSuccess('Order created successfully.');
+      setSuccess('Customer order reserved successfully.');
       setIsCreateModalOpen(false);
-      loadData();
+      // OPTIMIZATION: Update local state without double-fetching
+      setData(prev => [res.data, ...prev]);
     } catch (err: any) {
       setError(err.message || 'Validation failed. Check your input.');
     } finally {
@@ -130,9 +133,12 @@ export const CustomerOrders = () => {
     setSuccess('');
     setIsLoading(true);
     try {
-      await fetchApi(`/customer-orders/${id}/cancel`, { method: 'PATCH' });
-      setSuccess('Order cancelled successfully.');
-      loadData();
+      const res = await fetchApi(`/customer-orders/${id}/cancel`, {
+        method: 'PATCH',
+      });
+      setSuccess('Customer order cancelled successfully.');
+      // OPTIMIZATION: Update local state without double-fetching
+      setData(prev => prev.map(o => o.id === id ? res.data : o));
     } catch (err: any) {
       setError(err.message || 'Failed to cancel order.');
     } finally {
@@ -141,79 +147,80 @@ export const CustomerOrders = () => {
   };
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'RESERVED':
-        return <span style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.875rem', backgroundColor: '#DBEAFE', color: '#1E40AF' }}>RESERVED</span>;
-      case 'CANCELLED':
-        return <span style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.875rem', backgroundColor: '#F3F4F6', color: '#374151' }}>CANCELLED</span>;
-      default:
-        return <span>{status}</span>;
-    }
+    return <span className={`badge badge-${status.toLowerCase()}`}>{status}</span>;
   };
 
   return (
-    <div className="card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <h2 style={{ margin: 0 }}>Customer Orders</h2>
-        {canMutate && (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h2 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.75rem' }}>Customer Orders</h2>
+          <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.875rem' }}>Reserve stock for external fulfillment</p>
+        </div>
+        {canCreate && (
           <button className="btn" onClick={openCreateModal}>Create Customer Order</button>
         )}
       </div>
 
       {error && <div className="text-error">{error}</div>}
-      {success && <div className="text-error" style={{ color: '#059669', backgroundColor: '#D1FAE5', borderColor: '#34D399' }}>{success}</div>}
+      {success && <div className="text-success">{success}</div>}
 
-      <form onSubmit={handleSearch} style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-        <select 
-          className="form-input" 
-          value={statusFilter} 
-          onChange={e => setStatusFilter(e.target.value)} 
-          style={{ width: '200px' }}
-        >
-          <option value="">All Statuses</option>
-          <option value="RESERVED">RESERVED</option>
-          <option value="CANCELLED">CANCELLED</option>
-        </select>
-        <button type="submit" className="btn btn-secondary">Search</button>
-      </form>
+      <div className="card" style={{ marginBottom: '1.5rem', padding: '1rem' }}>
+        <form onSubmit={handleSearch} style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+          <select 
+            className="form-input" 
+            value={statusFilter} 
+            onChange={e => setStatusFilter(e.target.value)} 
+            style={{ flex: '1 1 200px' }}
+          >
+            <option value="">All Statuses</option>
+            <option value="RESERVED">RESERVED</option>
+            <option value="CANCELLED">CANCELLED</option>
+            <option value="SHIPPED">SHIPPED</option>
+          </select>
+          <button type="submit" className="btn btn-secondary">Search</button>
+        </form>
+      </div>
 
       {isLoading && data.length === 0 ? (
-        <p style={{ textAlign: 'center', padding: '2rem' }}>Loading...</p>
+        <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>Loading...</p>
       ) : data.length === 0 ? (
-        <p style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No customer orders found.</p>
+        <div className="card" style={{ textAlign: 'center', padding: '4rem 2rem' }}>
+          <p style={{ color: 'var(--text-muted)' }}>No customer orders found.</p>
+        </div>
       ) : (
         <div className="table-container">
           <table>
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Customer Name</th>
-                <th>Location</th>
+                <th>Customer</th>
                 <th>Item</th>
-                <th>Qty</th>
+                <th>Location</th>
+                <th style={{ textAlign: 'right' }}>Quantity</th>
                 <th>Status</th>
-                <th>Created</th>
+                <th>Created By</th>
+                <th>Created At</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {data.map(order => (
                 <tr key={order.id}>
-                  <td>{order.id.substring(0, 8)}...</td>
-                  <td>{order.customerName}</td>
-                  <td>{order.location}</td>
+                  <td style={{ fontWeight: 500 }}>{order.customerName}</td>
                   <td>{order.item}</td>
-                  <td>{order.quantity}</td>
+                  <td>{order.location}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 600 }}>{order.quantity}</td>
                   <td>{getStatusBadge(order.status)}</td>
+                  <td style={{ color: 'var(--text-muted)' }}>{order.createdBy}</td>
                   <td>{new Date(order.createdAt).toLocaleDateString()}</td>
                   <td>
                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                       <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }} onClick={() => openViewModal(order.id)} disabled={isLoading}>
                         View
                       </button>
-                      {canMutate && order.status === 'RESERVED' && (
-                        <button className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', borderColor: '#EF4444', color: '#B91C1C' }} onClick={() => handleCancel(order.id)} disabled={isLoading}>
-                          Cancel
+                      {(canCancelAll || (canCancelOwn && order.createdBy === user?.name)) && order.status === 'RESERVED' && (
+                        <button className="btn btn-secondary btn-danger" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', border: 'none' }} onClick={() => handleCancel(order.id)} disabled={isLoading}>
+                          {isLoading ? 'Cancelling...' : 'Cancel'}
                         </button>
                       )}
                     </div>
@@ -259,7 +266,7 @@ export const CustomerOrders = () => {
               </div>
               <div className="form-group">
                 <label className="form-label">Quantity</label>
-                <input type="number" min="1" required className="form-input" value={formData.quantity} onChange={e => setFormData({...formData, quantity: parseInt(e.target.value) || 0})} />
+                <input type="number" min="1" required className="form-input" value={formData.quantity} onChange={e => setFormData({...formData, quantity: e.target.value === '' ? '' : parseInt(e.target.value) || 0})} />
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => setIsCreateModalOpen(false)}>Cancel</button>

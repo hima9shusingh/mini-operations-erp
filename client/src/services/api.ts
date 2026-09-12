@@ -16,7 +16,7 @@ export const fetchApi = async (endpoint: string, options: RequestInit = {}) => {
   const data = await response.json();
   
   if (!response.ok) {
-    if (response.status === 401) {
+    if (response.status === 401 && !endpoint.includes('/auth/login')) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
