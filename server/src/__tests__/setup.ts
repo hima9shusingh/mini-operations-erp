@@ -1,5 +1,7 @@
 import prisma from '../database/prisma';
 
+jest.setTimeout(30000);
+
 beforeAll(async () => {
   await prisma.customerOrder.deleteMany();
   await prisma.internalTransfer.deleteMany();

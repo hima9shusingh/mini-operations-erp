@@ -94,9 +94,27 @@ export const getWorkOrders = async (req: Request, res: Response): Promise<void> 
       orderBy: { createdAt: 'desc' }
     });
 
+    const populatedRecords = await Promise.all(records.map(async (wo) => {
+      const inventories = await prisma.inventory.findMany({
+        where: { itemId: wo.itemId, locationId: wo.locationId }
+      });
+      let availableQuantity = 0;
+      for (const inv of inventories) {
+        availableQuantity += (inv.physicalQuantity - inv.reservedQuantity);
+      }
+      if (availableQuantity < 0) availableQuantity = 0;
+      let shortageQuantity = wo.requiredQuantity - availableQuantity;
+      if (shortageQuantity < 0) shortageQuantity = 0;
+
+      return {
+        ...formatWorkOrder(wo),
+        materialAvailability: { availableQuantity, shortageQuantity }
+      };
+    }));
+
     res.status(200).json({
       success: true,
-      data: records.map(formatWorkOrder),
+      data: populatedRecords,
       pagination: {
         page,
         limit,

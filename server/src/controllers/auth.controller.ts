@@ -126,3 +126,20 @@ export const getMe = async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
+
+export const getUsers = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+      }
+    });
+    res.json({ success: true, data: users });
+  } catch (error) {
+    console.error('Get users error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+};

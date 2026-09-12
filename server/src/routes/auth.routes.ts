@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { register, login, getMe } from '../controllers/auth.controller';
+import { register, login, getMe, getUsers } from '../controllers/auth.controller';
 import { authenticate } from '../middleware/auth';
 import { authorizeRoles } from '../middleware/role';
 
@@ -9,6 +9,7 @@ router.post('/register', register);
 router.post('/login', login);
 
 router.get('/me', authenticate, getMe);
+router.get('/users', authenticate, getUsers);
 
 router.get('/admin-test', authenticate, authorizeRoles('ADMIN'), (req: Request, res: Response) => {
   res.json({ success: true, message: 'Admin access granted' });
