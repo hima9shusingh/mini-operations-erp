@@ -5,6 +5,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { Navbar } from './components/Navbar';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
+import { Inventory } from './pages/Inventory';
 import { Placeholder } from './pages/Placeholder';
 
 const AppLayout = ({ children }: { children: ReactNode }) => (
@@ -25,7 +26,7 @@ function App() {
           
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
-            <Route path="/inventory" element={<AppLayout><Placeholder title="Inventory Management" /></AppLayout>} />
+            <Route path="/inventory" element={<AppLayout><Inventory /></AppLayout>} />
             <Route path="/work-orders" element={<AppLayout><Placeholder title="Work Orders" /></AppLayout>} />
             <Route path="/transfers" element={<AppLayout><Placeholder title="Internal Transfers" /></AppLayout>} />
             <Route path="/customer-orders" element={<AppLayout><Placeholder title="Customer Orders" /></AppLayout>} />
