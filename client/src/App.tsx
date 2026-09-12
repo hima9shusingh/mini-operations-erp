@@ -8,7 +8,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Inventory } from './pages/Inventory';
 import { WorkOrders } from './pages/WorkOrders';
 import { Transfers } from './pages/Transfers';
-import { Placeholder } from './pages/Placeholder';
+import { CustomerOrders } from './pages/CustomerOrders';
 
 const AppLayout = ({ children }: { children: ReactNode }) => (
   <div className="app-container">
@@ -31,7 +31,7 @@ function App() {
             <Route path="/inventory" element={<AppLayout><Inventory /></AppLayout>} />
             <Route path="/work-orders" element={<AppLayout><WorkOrders /></AppLayout>} />
             <Route path="/transfers" element={<AppLayout><Transfers /></AppLayout>} />
-            <Route path="/customer-orders" element={<AppLayout><Placeholder title="Customer Orders" /></AppLayout>} />
+            <Route path="/customer-orders" element={<AppLayout><CustomerOrders /></AppLayout>} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />
