@@ -7,6 +7,7 @@ import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Inventory } from './pages/Inventory';
 import { WorkOrders } from './pages/WorkOrders';
+import { Transfers } from './pages/Transfers';
 import { Placeholder } from './pages/Placeholder';
 
 const AppLayout = ({ children }: { children: ReactNode }) => (
@@ -29,7 +30,7 @@ function App() {
             <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
             <Route path="/inventory" element={<AppLayout><Inventory /></AppLayout>} />
             <Route path="/work-orders" element={<AppLayout><WorkOrders /></AppLayout>} />
-            <Route path="/transfers" element={<AppLayout><Placeholder title="Internal Transfers" /></AppLayout>} />
+            <Route path="/transfers" element={<AppLayout><Transfers /></AppLayout>} />
             <Route path="/customer-orders" element={<AppLayout><Placeholder title="Customer Orders" /></AppLayout>} />
           </Route>
 
